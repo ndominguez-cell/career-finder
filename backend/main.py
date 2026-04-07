@@ -1,4 +1,5 @@
-from fastapi import FastAPI, UploadFile, File, Header, Optional
+from typing import Optional
+from fastapi import FastAPI, UploadFile, File, Header
 from fastapi.middleware.cors import CORSMiddleware
 import time
 import asyncio
