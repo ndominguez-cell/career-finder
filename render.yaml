@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: career-finder-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    # Playwright requires a decent amount of memory. 
+    # 'starter' ($7/mo) or higher is recommended for headless browser sessions.
+    # We leave plan blank to let you select it during deployment.
+    region: ohio
+    # Port must match what uvicorn uses
+    envVars:
+      - key: PORT
+        value: 8000
