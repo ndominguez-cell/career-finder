@@ -14,6 +14,9 @@ RUN playwright install chromium --with-deps
 # Copy the backend application
 COPY backend/ ./backend/
 
+# Make backend packages importable as top-level modules
+ENV PYTHONPATH=/app/backend
+
 # Expose port
 EXPOSE 8000
 
