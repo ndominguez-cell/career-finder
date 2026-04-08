@@ -1,29 +1,70 @@
-# Anti-Gravity Template
+# 🚀 Career Finder AI
 
-This project follows the **Anti-Gravity 3-Layer Architecture**, separating concerns to maximize reliability and predictability.
+**Career Finder AI** is a multi-agent SaaS platform that automates the job search, scoring, and application process. It uses specialized agents for job collection (API & Scraping) and a GPT-4o powered engine for resume tailoring.
 
-## The 3-Layer Architecture
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new)
 
-**Layer 1: Directive (What to do)**
-- Basically just SOPs written in Markdown, live in `planning/directives/`.
-- Define the goals, inputs, tools/scripts to use, outputs, and edge cases.
-- Natural language instructions like you'd give a mid-level employee.
+## ✨ Features
+- **Parallel Job Hunting:** Simultaneously queries LinkedIn/Indeed via SearchApi and scrapes niche sites like YC Jobs.
+- **Smart Scoring:** Weighs job descriptions against your resume with a weighted heuristic engine.
+- **AI Resume Tailor:** One-click tailoring that optimizes your resume for specific roles using recruiter psychology.
+- **High-Conversion Email Gen:** Generates short, punchy application emails for every role.
+- **Glassmorphic UI:** Modern, premium dark mode interface.
 
-**Layer 2: Orchestration (Decision making)**
-- This is the AI's job: intelligent routing.
-- Read directives, call execution tools in the right order, handle errors, ask for clarification, and update directives with learnings.
-- The AI acts as the glue between intent and execution.
+## 🛠️ Tech Stack
+- **Backend:** FastAPI, Playwright (Headless Chrome), OpenAI GPT-4o, SearchApi.io.
+- **Frontend:** React, Vite, Vanilla CSS.
+- **Ops:** Docker (Backend), Vercel (Frontend).
 
-**Layer 3: Execution (Doing the work)**
-- Deterministic Python scripts (or other languages) in `execution/`.
-- Environment variables, api tokens, etc. are stored in `.env`.
-- Handle API calls, data processing, file operations, database interactions.
-- Reliable, testable, fast. Use scripts instead of manual work.
+## 🚀 One-Click Deployment
 
-## Directory Structure
-- `planning/` - For project blueprints, notes, architectural decisions, and SOPs (`directives/`).
-- `execution/` - For deterministic Python scripts, tool implementations, and core logic (Layer 3).
-- `testing/` - For unit tests and validation scripts.
-- `deliverables/` - For final generated outputs, exported reports, or delivery artifacts.
-- `.tmp/` - All intermediate files (dossiers, scraped data, temp exports). Never commit, always regenerated.
-- `Skills/` - Skills that extend the AI agent's capabilities with specialized knowledge, workflows, or tool integrations.
+### Backend (Render)
+1. Push this code to GitHub.
+2. Click the **Deploy to Render** button above or create a "Blueprint" project on Render.
+3. It will automatically detect `render.yaml` and prompt you for these variables:
+   - `OPENAI_API_KEY`
+   - `SEARCHAPI_KEY`
+
+### Frontend (Vercel)
+1. Import the repository into Vercel.
+2. Set the `VITE_API_URL` environment variable to your Render service URL (e.g., `https://career-finder-backend.onrender.com`).
+
+---
+
+## 💻 Local Development
+
+### 1. Requirements
+- Python 3.10+
+- Node.js 18+
+
+### 2. Setup
+```bash
+# Backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium --with-deps
+
+# Frontend
+cd frontend
+npm install
+```
+
+### 3. Run
+```bash
+# Terminal 1 (Backend)
+source .venv/bin/activate
+python -m uvicorn backend.main:app --reload
+
+# Terminal 2 (Frontend)
+cd frontend
+npm run dev
+```
+
+---
+
+## 📂 Architecture
+- `/backend/agents/` - The "Brains": API, Scrape, and Tailor agents.
+- `/backend/scoring/` - The "Logic": Mathematical fit scoring engine.
+- `/frontend/src/` - The "Face": React components and Glassmorphism styles.

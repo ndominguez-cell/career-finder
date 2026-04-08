@@ -1,5 +1,6 @@
 from typing import List, Dict
 import asyncio
+import uuid
 from playwright.async_api import async_playwright
 
 async def run_scrape_agent(urls: List[str]) -> List[Dict]:
@@ -47,8 +48,37 @@ async def run_scrape_agent(urls: List[str]) -> List[Dict]:
                         except Exception as e:
                             print(f"Failed to parse an HN row: {e}")
                 else:
-                    # Generic naive extraction for other sites (e.g. h1, h2 matching 'engineer')
-                    print(f"Generic scrape for {url} not fully implemented yet.")
+                    # Generic naive extraction for other sites (e.g. looking for job-like items)
+                    print(f"Generic scrape for {url}... extracting title and links.")
+                    page_title = await page.title()
+                    
+                    # Try to find elements that look like job titles (e.g. h2 or h3 with certain keywords)
+                    job_keywords = ["engineer", "developer", "technician", "scientist", "manager", "lead", "staff", "associate"]
+                    
+                    # Simple heuristic: find headers and anchor tags
+                    selectors = ["h1", "h2", "h3", ".job-title", ".title", "[class*='job']"]
+                    found_something = False
+                    
+                    for sel in selectors:
+                        elements = await page.locator(sel).all()
+                        for el in elements:
+                            text = await el.inner_text()
+                            if any(kw in text.lower() for kw in job_keywords) and len(text) < 100:
+                                scraped_jobs.append({
+                                    "id": f"gen_{uuid.uuid4().hex[:6]}",
+                                    "title": text.strip(),
+                                    "company": page_title.split("|")[0].strip() or "Various",
+                                    "location": "Remote / Hybrid",
+                                    "description": f"Found on {url}. Content-based match.",
+                                    "url": url,
+                                    "source": "SCRAPE_AGENT"
+                                })
+                                found_something = True
+                                if len(scraped_jobs) > 20: break
+                        if found_something: break
+                    
+                    if not found_something:
+                        print(f"No obvious jobs found on {url}")
             except Exception as e:
                 print(f"Scrape Agent Error on {url}: {e}")
                 

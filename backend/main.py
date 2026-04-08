@@ -1,134 +1,189 @@
-from typing import Optional
-from fastapi import FastAPI, UploadFile, File, Header
+from typing import Optional, List
+from fastapi import FastAPI, UploadFile, File, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
-import time
 import asyncio
 import io
 from PyPDF2 import PdfReader
+from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from agents.api_agent import run_api_agent
 from agents.scrape_agent import run_scrape_agent
-from agents.resume_tailor import draft_tailored_resume
-from pydantic import BaseModel
+from agents.resume_tailor import draft_tailored_resume, generate_application_email
+from scoring.engine import JobInput, CandidateInput, score_job_fit
 
-class TailorRequest(BaseModel):
-    job: dict
-    base_resume: str = ""
-    openai_key: Optional[str] = None
+app = FastAPI(title="Career Finder API", version="2.0.0")
 
-app = FastAPI(title="Career Finder API")
-
-# Allow Vite frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── Pydantic Schemas ──────────────────────────────────────────────────────────
+
+class TailorRequest(BaseModel):
+    job: dict
+    base_resume: str = ""
+    openai_key: Optional[str] = None
+    positioning_mode: str = "balanced"
+    candidate_notes: str = ""
+
+class EmailRequest(BaseModel):
+    job: dict
+    top_qualifications: str = ""
+    hiring_manager: str = ""
+    openai_key: Optional[str] = None
+
+class ScoreRequest(BaseModel):
+    job: JobInput
+    candidate: CandidateInput
+    positioning_mode: str = "balanced"
+
+# ── Stored resume text (session-level, single user for MVP) ──────────────────
+_resume_store: dict = {"text": "", "profile": {}}
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
 @app.post("/upload_resume")
 async def upload_resume(file: UploadFile = File(...)):
-    """
-    Endpoint to handle resume upload. Extracts text from PDF and infers skills.
-    """
+    """Parse uploaded PDF/doc resume and extract text + infer profile."""
     content = await file.read()
-    print(f"Uploaded: {file.filename} ({len(content)} bytes)")
-    
+
     extracted_text = ""
-    target_role = "Software Engineer" # Default
-    
+    target_role = "Software Engineer"
+
     try:
-        if file.filename.lower().endswith('.pdf'):
+        if file.filename.lower().endswith(".pdf"):
             reader = PdfReader(io.BytesIO(content))
             for page in reader.pages:
-                extracted_text += page.extract_text() + "\n"
-            print("Successfully extracted PDF text.")
-            
-            # Very basic hardcoded extraction based on keywords to simulate LLM until API keys are set
-            extracted_text_lower = extracted_text.lower()
-            inferred_skills = []
-            if "react" in extracted_text_lower: inferred_skills.append("React")
-            if "python" in extracted_text_lower: inferred_skills.append("Python")
-            if "node" in extracted_text_lower: inferred_skills.append("Node.js")
-            if "aws" in extracted_text_lower: inferred_skills.append("AWS")
-            
-            if "frontend" in extracted_text_lower: target_role = "Frontend Engineer"
-            elif "backend" in extracted_text_lower: target_role = "Backend Engineer"
-            elif "data" in extracted_text_lower: target_role = "Data Engineer"
-            
-            inferred_profile = {
+                extracted_text += (page.extract_text() or "") + "\n"
+
+            tl = extracted_text.lower()
+            skills = []
+            for kw in ["react", "python", "node", "aws", "typescript", "java",
+                        "c++", "matlab", "abaqus", "stk", "ros2", "docker"]:
+                if kw in tl:
+                    skills.append(kw.title() if kw not in ["c++", "ros2", "aws"] else kw.upper())
+
+            for role_kw, role in [("frontend", "Frontend Engineer"),
+                                   ("backend", "Backend Engineer"),
+                                   ("data", "Data Engineer"),
+                                   ("aerospace", "Aerospace Engineer"),
+                                   ("systems", "Systems Engineer")]:
+                if role_kw in tl:
+                    target_role = role
+                    break
+
+            profile = {
                 "title": target_role,
-                "skills": inferred_skills if inferred_skills else ["Python", "React", "Next.js"],
+                "skills": skills or ["Python", "React"],
                 "location": "Remote",
-                "raw_text_length": len(extracted_text)
+                "raw_text_length": len(extracted_text),
             }
         else:
-            inferred_profile = {
-                "title": target_role,
-                "skills": ["Python", "React", "Next.js"],
-                "location": "Remote",
-                "note": "Not a PDF, returning mockup profile"
-            }
-            
+            profile = {"title": target_role, "skills": ["Python", "React"],
+                       "location": "Remote", "note": "Non-PDF file"}
+
     except Exception as e:
-        print(f"Error parsing PDF: {e}")
-        inferred_profile = {
-            "title": "Software Engineer",
-            "skills": ["Python", "React"],
-            "location": "Remote",
-            "error": "Failed to parse PDF"
-        }
-    
-    return {"filename": file.filename, "status": "Parsed successfully!", "profile": inferred_profile}
+        extracted_text = ""
+        profile = {"title": "Software Engineer", "skills": ["Python"],
+                   "location": "Remote", "error": str(e)}
+
+    # Store for session use
+    _resume_store["text"] = extracted_text
+    _resume_store["profile"] = profile
+
+    return {"filename": file.filename, "status": "Parsed successfully!", "profile": profile}
+
 
 @app.get("/fetch_jobs")
-async def fetch_jobs(x_searchapi_key: Optional[str] = Header(None)):
-    """
-    Triggers BOTH the API Aggregator Agent and the direct Web Scraping Agent.
-    Aggregates and scores the jobs.
-    """
-    # 1. Fire off both agents in parallel
-    target_queries = ["Software Engineer Remote"]
-    target_boards = ["https://news.ycombinator.com/jobs", "https://wellfound.com/jobs"]
-    
-    # Run API Agent (Sync turned async for simulation)
-    # In real app run_in_executor for sync requests
-    api_jobs = run_api_agent(target_queries, passed_api_key=x_searchapi_key)
-    
-    # Run Scrape Agent (Async playwright)
+async def fetch_jobs(
+    x_searchapi_key: Optional[str] = Header(None),
+    role: str = Query("Software Engineer"),
+    location: str = Query("Remote"),
+):
+    """Run both agents in parallel and return scored job list."""
+    # Build dynamic queries from the detected resume profile
+    target_queries = [
+        f"{role} {location}",
+        f"Senior {role} Remote",
+    ]
+    target_boards = ["https://news.ycombinator.com/jobs"]
+
+    api_jobs     = run_api_agent(target_queries, passed_api_key=x_searchapi_key)
     scraped_jobs = await run_scrape_agent(target_boards)
-    
-    # 2. Consolidate results
-    all_raw_jobs = api_jobs + scraped_jobs
-    
-    # 3. Analyze and score (Simulated)
-    scored_jobs = []
-    for job in all_raw_jobs:
-        score = 80 if "React" in job["description"] or "Python" in job["description"] else 40
-        reasoning = "Good tech stack match." if score >= 70 else "Missing core skills from resume."
-        job["score"] = score
-        job["reasoning"] = reasoning
-        scored_jobs.append(job)
-        
-    # Sort descending
-    scored_jobs.sort(key=lambda x: x["score"], reverse=True)
-    
-    return {
-        "status": "success",
-        "jobs": scored_jobs
-    }
+
+    all_jobs = api_jobs + scraped_jobs
+    resume_text = _resume_store.get("text", "")
+
+    scored = []
+    for job in all_jobs:
+        candidate = CandidateInput(resume_text=resume_text or "Python React")
+        job_input = JobInput(
+            title=job.get("title", ""),
+            company=job.get("company", ""),
+            description=job.get("description", ""),
+        )
+        result = score_job_fit(job_input, candidate)
+        job["score"] = result.overall_fit_score
+        job["reasoning"] = result.recommendation
+        job["matched_keywords"] = result.matched_keywords
+        job["missing_keywords"] = result.missing_keywords
+        job["inferred_domains"] = result.inferred_domains
+        scored.append(job)
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return {"status": "success", "jobs": scored}
+
+
+@app.post("/score-job")
+def score_job(req: ScoreRequest):
+    """Deterministic pre-LLM job fit scorer."""
+    result = score_job_fit(req.job, req.candidate, req.positioning_mode)
+    return result
+
 
 @app.post("/tailor_resume")
 async def tailor_resume(req: TailorRequest):
     """
-    Triggers the 3-step LLM pipeline:
-    Step 0 → Score candidate fit
-    Step 1 → Tailor resume with master prompt
+    3-step LLM pipeline:
+    Step 1 → Tailor resume with master prompt + recruiter psychology
     Step 2 → Self-critique and refine
     """
-    result = draft_tailored_resume(req.job, req.base_resume, openai_key=req.openai_key)
+    resume_text = req.base_resume or _resume_store.get("text", "")
+    result = draft_tailored_resume(
+        job_details=req.job,
+        base_resume_text=resume_text,
+        openai_key=req.openai_key,
+        positioning_mode=req.positioning_mode,
+        candidate_notes=req.candidate_notes,
+    )
     return {"tailored_resume": result}
+
+
+@app.post("/generate-email")
+async def generate_email_endpoint(req: EmailRequest):
+    """Generate a short high-conversion application email."""
+    result = generate_application_email(
+        job_details=req.job,
+        top_qualifications=req.top_qualifications,
+        hiring_manager=req.hiring_manager,
+        openai_key=req.openai_key,
+    )
+    return {"email": result}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": "2.0.0"}
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
