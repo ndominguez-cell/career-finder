@@ -1,8 +1,29 @@
-from typing import Dict
+import os
+from typing import Dict, Optional
+from openai import OpenAI
+
+
+# ── STEP 0: SCORE THE CANDIDATE'S FIT BEFORE ANY REWRITING ──────────────────
+
+SYSTEM_PROMPT_STEP_0_SCORE = """You are a technical recruiter and ATS screening engine.
+
+Given a JOB DESCRIPTION and a CANDIDATE RESUME, produce a brutally honest fit assessment.
+
+OUTPUT FORMAT — return exactly:
+
+=== JOB FIT SCORE ===
+- Overall Fit: X / 100
+- Strength Areas: [bulleted list]
+- Weak Areas: [bulleted list]
+- Missing Keywords: [bulleted list of keywords/phrases from the JD not present in resume]
+"""
+
+
+# ── STEP 1: MASTER TAILORING PROMPT ─────────────────────────────────────────
 
 SYSTEM_PROMPT_STEP_1 = """You are an expert resume strategist, ATS optimization specialist, and technical recruiter.
 
-Your task is to adapt a candidate’s master resume for a specific job posting so the final resume is:
+Your task is to adapt a candidate's master resume for a specific job posting so the final resume is:
 1. ATS-friendly
 2. Truthful and defensible
 3. Strongly aligned to the target role
@@ -17,7 +38,7 @@ INPUTS
 - OUTPUT_STYLE: {output_style}
 
 OBJECTIVE
-Customize the resume to maximize relevance for the role while preserving factual accuracy. Reframe, reorder, and rewrite existing experience so it matches the employer’s likely screening logic, recruiter psychology, and ATS keyword matching.
+Customize the resume to maximize relevance for the role while preserving factual accuracy. Reframe, reorder, and rewrite existing experience so it matches the employer's likely screening logic, recruiter psychology, and ATS keyword matching.
 
 MANDATORY RULES
 - Do NOT invent jobs, degrees, certifications, security clearances, projects, measurable results, or software/tools not supported by the input.
@@ -92,7 +113,7 @@ RESUME WRITING STANDARDS
 - Use compact bullets
 - Avoid first person pronouns
 - Avoid dense keyword stuffing
-- Avoid generic claims like “hard worker,” “team player,” or “go-getter”
+- Avoid generic claims like "hard worker," "team player," or "go-getter"
 - Make every line earn its place
 - Prefer specific nouns over vague language
 - Favor verbs such as: designed, modeled, analyzed, validated, implemented, optimized, integrated, executed, supported, coordinated, simulated, tested
@@ -106,6 +127,8 @@ SPECIAL POSITIONING LOGIC
 QUALITY BAR
 The final result should read like a deliberate, highly relevant submission tailored for this exact role, not a generic resume with superficial edits."""
 
+
+# ── STEP 2: REFINEMENT PROMPT ───────────────────────────────────────────────
 
 SYSTEM_PROMPT_STEP_2_REFINEMENT = """Review the tailored resume you just produced.
 
@@ -127,25 +150,92 @@ Then output exactly:
 [Bulleted list]"""
 
 
-def draft_tailored_resume(job_details: Dict, base_resume_text: str) -> str:
+# ── EXECUTION ENGINE ────────────────────────────────────────────────────────
+
+def draft_tailored_resume(
+    job_details: Dict,
+    base_resume_text: str,
+    openai_key: Optional[str] = None
+) -> str:
     """
-    Dummy function for generating a tailored resume.
-    In the real implementation, this will make a multi-turn call to OpenAI/Anthropic:
-    1. Format SYSTEM_PROMPT_STEP_1 with kwargs -> Get initial draft
-    2. Send initial draft + SYSTEM_PROMPT_STEP_2_REFINEMENT -> Get final polished resume
+    3-step LLM pipeline:
+      Step 0  →  Score the candidate's current fit (before any edits)
+      Step 1  →  Tailor the resume using the master prompt
+      Step 2  →  Self-critique and refine the tailored resume
+    Returns the concatenated output of all three steps.
     """
-    
-    # Mocking the AI output for testing the UI flow
-    mock_output = f"""=== IMPROVED FINAL RESUME ===
-John Doe | Software Engineer
-Tailored for: {job_details.get('title', 'Target Role')} at {job_details.get('company', 'Target Company')}
 
-- Highlighted Backend API Development
-- Re-structured bullet points to match ATS keywords: {(job_details.get('description', '')[:30])}...
+    # Resolve API key: passed-in key > env var
+    api_key = openai_key or os.environ.get("OPENAI_API_KEY")
 
-=== FINAL IMPROVEMENTS MADE ===
-- Moved Python experience to the top to match job requirements
-- Condensed older jobs to focus on recent relevant accomplishments
-- Added exact ATS phrasing from the job description"""
+    if not api_key:
+        return (
+            "⚠️  No OpenAI API key provided.\n\n"
+            "Please paste your key in Settings (⚙️) or set OPENAI_API_KEY "
+            "as an environment variable on the server."
+        )
 
-    return mock_output
+    client = OpenAI(api_key=api_key)
+
+    job_title = job_details.get("title", "Target Role")
+    company   = job_details.get("company", "Target Company")
+    job_desc  = job_details.get("description", "No description provided.")
+
+    # ── Step 0: Score ────────────────────────────────────────────────────
+    score_user_msg = (
+        f"JOB DESCRIPTION:\n{job_desc}\n\n"
+        f"CANDIDATE RESUME:\n{base_resume_text}"
+    )
+
+    score_resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT_STEP_0_SCORE},
+            {"role": "user",   "content": score_user_msg},
+        ],
+        temperature=0.3,
+    )
+    score_output = score_resp.choices[0].message.content
+
+    # ── Step 1: Tailor ───────────────────────────────────────────────────
+    tailor_system = SYSTEM_PROMPT_STEP_1.format(
+        job_title=job_title,
+        company_name=company,
+        job_description=job_desc,
+        master_resume=base_resume_text,
+        candidate_notes="None provided",
+        output_style="ATS plain-text",
+    )
+
+    tailor_resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": tailor_system},
+            {"role": "user",   "content": "Please produce the tailored resume now."},
+        ],
+        temperature=0.4,
+    )
+    tailor_output = tailor_resp.choices[0].message.content
+
+    # ── Step 2: Refine ───────────────────────────────────────────────────
+    refine_resp = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": tailor_system},
+            {"role": "assistant", "content": tailor_output},
+            {"role": "user",   "content": SYSTEM_PROMPT_STEP_2_REFINEMENT},
+        ],
+        temperature=0.3,
+    )
+    refine_output = refine_resp.choices[0].message.content
+
+    # ── Combine all three outputs ────────────────────────────────────────
+    combined = (
+        f"{score_output}\n\n"
+        f"{'='*60}\n"
+        f"{tailor_output}\n\n"
+        f"{'='*60}\n"
+        f"{refine_output}"
+    )
+
+    return combined

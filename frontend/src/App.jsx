@@ -7,6 +7,7 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchApiKey, setSearchApiKey] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [showConfig, setShowConfig] = useState(false);
   const [tailoringStatus, setTailoringStatus] = useState({});
   const [tailoredResult, setTailoredResult] = useState(null);
@@ -70,7 +71,7 @@ function App() {
       const res = await fetch(`${apiUrl}/tailor_resume`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job: job, base_resume: "Candidate Base Resume" })
+        body: JSON.stringify({ job: job, base_resume: "Candidate Base Resume", openai_key: openaiApiKey })
       });
       const data = await res.json();
       setTailoredResult(data.tailored_resume);
@@ -121,6 +122,27 @@ function App() {
               }}
             />
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Used by the AI background agent to bypass LinkedIn/Indeed captchas via SearchApi.</p>
+          </div>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+            <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>OpenAI API Key (Optional, bypasses .env)</label>
+            <input 
+              type="password" 
+              value={openaiApiKey}
+              onChange={(e) => setOpenaiApiKey(e.target.value)}
+              placeholder="sk-proj-..."
+              style={{
+                width: '100%',
+                padding: '0.8rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                color: 'white',
+                fontSize: '1rem',
+                fontFamily: 'inherit'
+              }}
+            />
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Used to bypass the ATS matching engine and rewrite your resume dynamically.</p>
           </div>
         </section>
       )}

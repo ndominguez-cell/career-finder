@@ -13,6 +13,7 @@ from pydantic import BaseModel
 class TailorRequest(BaseModel):
     job: dict
     base_resume: str = ""
+    openai_key: Optional[str] = None
 
 app = FastAPI(title="Career Finder API")
 
@@ -120,10 +121,12 @@ async def fetch_jobs(x_searchapi_key: Optional[str] = Header(None)):
 @app.post("/tailor_resume")
 async def tailor_resume(req: TailorRequest):
     """
-    Triggers the Tailoring Agent that uses 2-step LLM prompting
-    to rewrite the resume specifically for a job opening.
+    Triggers the 3-step LLM pipeline:
+    Step 0 → Score candidate fit
+    Step 1 → Tailor resume with master prompt
+    Step 2 → Self-critique and refine
     """
-    result = draft_tailored_resume(req.job, req.base_resume)
+    result = draft_tailored_resume(req.job, req.base_resume, openai_key=req.openai_key)
     return {"tailored_resume": result}
 
 if __name__ == "__main__":
