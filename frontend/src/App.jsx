@@ -27,7 +27,6 @@ function App() {
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFile = e.target.files[0];
-      setFile(selectedFile);
       setUploadStatus('Uploading...');
 
       const formData = new FormData();
@@ -39,6 +38,7 @@ function App() {
           body: formData,
         });
         const data = await res.json();
+        setFile(selectedFile);
         setResumeProfile(data.profile);
         setUploadStatus(`Processed: ${data.filename}`);
       } catch (err) {

@@ -9,10 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from agents.api_agent import run_api_agent
-from agents.scrape_agent import run_scrape_agent
-from agents.resume_tailor import draft_tailored_resume, generate_application_email
-from scoring.engine import JobInput, CandidateInput, score_job_fit
+from backend.agents.api_agent import run_api_agent
+from backend.agents.scrape_agent import run_scrape_agent
+from backend.agents.resume_tailor import draft_tailored_resume, generate_application_email
+from backend.scoring.engine import JobInput, CandidateInput, score_job_fit
 
 app = FastAPI(title="Career Finder API", version="2.0.0")
 
