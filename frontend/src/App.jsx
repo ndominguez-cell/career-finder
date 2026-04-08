@@ -9,9 +9,7 @@ function App() {
   const [resumeProfile, setResumeProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchApiKey, setSearchApiKey] = useState('');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [showConfig, setShowConfig] = useState(false);
+  const [targetLocation, setTargetLocation] = useState('Remote');
   const [tailoringStatus, setTailoringStatus] = useState({});
   const [tailoredResult, setTailoredResult] = useState(null);
   const [emailStatus, setEmailStatus] = useState({});
@@ -51,19 +49,13 @@ function App() {
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      const headers = {};
-      if (searchApiKey) {
-        headers['X-Searchapi-Key'] = searchApiKey;
-      }
-
-      // Pass profile-inferred role + location as query params
+      // Pass profile-inferred role + user-specified location as query params
       const role = resumeProfile?.title || 'Software Engineer';
-      const location = resumeProfile?.location || 'Remote';
       const url = new URL(`${API_URL}/fetch_jobs`);
       url.searchParams.set('role', role);
-      url.searchParams.set('location', location);
+      url.searchParams.set('location', targetLocation);
 
-      const res = await fetch(url.toString(), { headers });
+      const res = await fetch(url.toString());
       const data = await res.json();
       setJobs(data.jobs || []);
     } catch (err) {
@@ -84,7 +76,7 @@ function App() {
         body: JSON.stringify({
           job,
           base_resume: '', // backend uses _resume_store if empty
-          openai_key: openaiApiKey || null,
+          openai_key: null,
         }),
       });
       const data = await res.json();
@@ -110,7 +102,7 @@ function App() {
           job,
           top_qualifications: topQuals,
           hiring_manager: '',
-          openai_key: openaiApiKey || null,
+          openai_key: null,
         }),
       });
       const data = await res.json();
@@ -134,63 +126,8 @@ function App() {
       <header style={{ position: 'relative' }}>
         <h1>Career Finder AI</h1>
         <p>Drop your resume, let AI score the roles, and dispatch your applications.</p>
-
-        <button
-          onClick={() => setShowConfig(!showConfig)}
-          className="btn"
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            padding: '0.4rem 0.8rem',
-            fontSize: '0.9rem',
-            backgroundColor: 'var(--glass-bg)',
-            color: 'var(--text)',
-          }}
-        >
-          ⚙️ Settings
-        </button>
       </header>
 
-      {showConfig && (
-        <section
-          className="glass-panel"
-          style={{ marginBottom: '1.5rem', padding: '1.5rem', border: '1px solid var(--primary)' }}
-        >
-          <h3 style={{ marginBottom: '1rem' }}>User Configuration</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              SearchApi.io Key (Optional — bypasses .env)
-            </label>
-            <input
-              type="password"
-              value={searchApiKey}
-              onChange={(e) => setSearchApiKey(e.target.value)}
-              placeholder="Paste your key here..."
-              className="settings-input"
-            />
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Used to fetch live jobs from LinkedIn/Indeed via SearchApi.
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-            <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              OpenAI API Key (Optional — bypasses .env)
-            </label>
-            <input
-              type="password"
-              value={openaiApiKey}
-              onChange={(e) => setOpenaiApiKey(e.target.value)}
-              placeholder="sk-proj-..."
-              className="settings-input"
-            />
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Used by the resume tailor and email generator (GPT-4o).
-            </p>
-          </div>
-        </section>
-      )}
 
       <section className="glass-panel">
         {!file ? (
@@ -219,9 +156,22 @@ function App() {
                 </p>
               )}
             </div>
-            <button className="btn" onClick={fetchJobs} disabled={loading}>
-              {loading ? <div className="loader"></div> : '🔍 Start Finding Jobs'}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Target Location</label>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={targetLocation}
+                  onChange={(e) => setTargetLocation(e.target.value)}
+                  placeholder="e.g. Remote, New York, CA"
+                  className="settings-input"
+                  style={{ width: '200px', margin: 0 }}
+                />
+                <button className="btn" onClick={fetchJobs} disabled={loading}>
+                  {loading ? <div className="loader"></div> : '🔍 Start Finding Jobs'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </section>

@@ -117,7 +117,7 @@ async def fetch_jobs(
     target_boards = ["https://news.ycombinator.com/jobs"]
 
     api_jobs     = run_api_agent(target_queries, passed_api_key=x_searchapi_key)
-    scraped_jobs = await run_scrape_agent(target_boards)
+    scraped_jobs = await run_scrape_agent(role, location)
 
     all_jobs = api_jobs + scraped_jobs
     resume_text = _resume_store.get("text", "")
