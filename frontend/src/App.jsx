@@ -8,6 +8,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [searchApiKey, setSearchApiKey] = useState('');
   const [showConfig, setShowConfig] = useState(false);
+  const [tailoringStatus, setTailoringStatus] = useState({});
+  const [tailoredResult, setTailoredResult] = useState(null);
   
   const fileInputRef = useRef(null);
 
@@ -58,6 +60,25 @@ function App() {
       alert("Failed to fetch jobs. Is backend running?");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTailorResume = async (job) => {
+    setTailoringStatus(prev => ({ ...prev, [job.title]: true }));
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/tailor_resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job: job, base_resume: "Candidate Base Resume" })
+      });
+      const data = await res.json();
+      setTailoredResult(data.tailored_resume);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to tailor resume");
+    } finally {
+      setTailoringStatus(prev => ({ ...prev, [job.title]: false }));
     }
   };
 
@@ -148,8 +169,16 @@ function App() {
                   </a>
                 </div>
                 
-                <div className="job-score-container">
+                <div className="job-score-container" style={{display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end'}}>
                   <div className="job-score">{job.score}% Match</div>
+                  <button 
+                    className="btn" 
+                    onClick={() => handleTailorResume(job)}
+                    disabled={tailoringStatus[job.title]}
+                    style={{backgroundColor: 'var(--accent)'}}
+                  >
+                    {tailoringStatus[job.title] ? 'Tailoring...' : '🪄 Tailor Resume'}
+                  </button>
                   <button className="btn btn-success" onClick={() => alert(`Send pipeline triggered for ${job.title} at ${job.company}!`)}>
                     🚀 Send Application
                   </button>
@@ -158,6 +187,24 @@ function App() {
             ))}
           </div>
         </section>
+      )}
+
+      {tailoredResult && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '2rem'
+        }}>
+          <div className="glass-panel" style={{width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+              <h2>Tailored Resume Result</h2>
+              <button className="btn" onClick={() => setTailoredResult(null)} style={{background: 'var(--danger)'}}>Close</button>
+            </div>
+            <pre style={{whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.9rem', color: '#e2e8f0', background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px'}}>
+              {tailoredResult}
+            </pre>
+          </div>
+        </div>
       )}
     </div>
   );

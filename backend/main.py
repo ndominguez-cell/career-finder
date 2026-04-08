@@ -7,6 +7,12 @@ import io
 from PyPDF2 import PdfReader
 from agents.api_agent import run_api_agent
 from agents.scrape_agent import run_scrape_agent
+from agents.resume_tailor import draft_tailored_resume
+from pydantic import BaseModel
+
+class TailorRequest(BaseModel):
+    job: dict
+    base_resume: str = ""
 
 app = FastAPI(title="Career Finder API")
 
@@ -110,6 +116,15 @@ async def fetch_jobs(x_searchapi_key: Optional[str] = Header(None)):
         "status": "success",
         "jobs": scored_jobs
     }
+
+@app.post("/tailor_resume")
+async def tailor_resume(req: TailorRequest):
+    """
+    Triggers the Tailoring Agent that uses 2-step LLM prompting
+    to rewrite the resume specifically for a job opening.
+    """
+    result = draft_tailored_resume(req.job, req.base_resume)
+    return {"tailored_resume": result}
 
 if __name__ == "__main__":
     import uvicorn
