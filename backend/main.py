@@ -124,21 +124,25 @@ async def fetch_jobs(
 
     scored = []
     for job in all_jobs:
-        candidate = CandidateInput(resume_text=resume_text or "Python React")
-        job_input = JobInput(
-            title=job.get("title", ""),
-            company=job.get("company", ""),
-            description=job.get("description", ""),
-        )
-        result = score_job_fit(job_input, candidate)
-        job["score"] = result.overall_fit_score
-        job["reasoning"] = result.recommendation
-        job["matched_keywords"] = result.matched_keywords
-        job["missing_keywords"] = result.missing_keywords
-        job["inferred_domains"] = result.inferred_domains
-        scored.append(job)
+        try:
+            candidate = CandidateInput(resume_text=resume_text or "Python React")
+            job_input = JobInput(
+                title=job.get("title", ""),
+                company=job.get("company", ""),
+                description=job.get("description", ""),
+            )
+            result = score_job_fit(job_input, candidate)
+            job["score"] = result.overall_fit_score
+            job["reasoning"] = result.recommendation
+            job["matched_keywords"] = result.matched_keywords
+            job["missing_keywords"] = result.missing_keywords
+            job["inferred_domains"] = result.inferred_domains
+            scored.append(job)
+        except Exception as e:
+            print(f"Skipping job {job.get('title')} due to scoring error: {e}")
+            continue
 
-    scored.sort(key=lambda x: x["score"], reverse=True)
+    scored.sort(key=lambda x: x.get("score", 0), reverse=True)
     return {"status": "success", "jobs": scored}
 
 
