@@ -11,6 +11,7 @@ load_dotenv()
 
 from backend.agents.api_agent import run_api_agent
 from backend.agents.scrape_agent import run_scrape_agent
+from backend.agents.aerospace_agent import run_aerospace_agent
 from backend.agents.resume_tailor import draft_tailored_resume, generate_application_email
 from backend.scoring.engine import JobInput, CandidateInput, score_job_fit
 
@@ -118,8 +119,15 @@ async def fetch_jobs(
 
     api_jobs     = run_api_agent(target_queries, passed_api_key=x_searchapi_key)
     scraped_jobs = await run_scrape_agent(role, location)
+    
+    # ── Aerospace Discovery ──────────────────────────────────────────────────
+    aerospace_jobs = []
+    if any(kw in role.lower() or kw in (extracted_text := _resume_store.get("text", "")).lower() 
+           for kw in ["aerospace", "space", "satellite", "rocket", "propulsion", "avionics"]):
+        print("Main: Aerospace profile detected, running Aerospace Agent...")
+        aerospace_jobs = await run_aerospace_agent(role, location)
 
-    all_jobs = api_jobs + scraped_jobs
+    all_jobs = api_jobs + scraped_jobs + aerospace_jobs
     resume_text = _resume_store.get("text", "")
 
     scored = []
