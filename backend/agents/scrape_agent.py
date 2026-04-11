@@ -51,7 +51,8 @@ def scrape_greenhouse_api(company_token: str) -> List[Dict]:
                     "source": "SCRAPE_AGENT"
                 })
             return jobs
-    except: pass
+    except Exception as e:
+        print(f"Scrape Agent: Greenhouse error for {company_token}: {e}")
     return []
 
 def scrape_lever_api(company_token: str) -> List[Dict]:
@@ -72,7 +73,8 @@ def scrape_lever_api(company_token: str) -> List[Dict]:
                     "source": "SCRAPE_AGENT"
                 })
             return jobs
-    except: pass
+    except Exception as e:
+        print(f"Scrape Agent: Lever error for {company_token}: {e}")
     return []
 
 async def run_scrape_agent(role: str, location: str) -> List[Dict]:

@@ -38,8 +38,8 @@ def run_api_agent(queries: List[str], passed_api_key: Optional[str] = None) -> L
                 "gl": "us"
             }
             
-            # Using SearchApi.io endpoint
-            response = requests.get("https://www.searchapi.io/api/v1/search", params=params)
+            # Using SearchApi.io endpoint (added 15s timeout for hardening)
+            response = requests.get("https://www.searchapi.io/api/v1/search", params=params, timeout=15)
             response.raise_for_status()
             data = response.json()
             
