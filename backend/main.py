@@ -72,11 +72,20 @@ async def upload_resume(file: UploadFile = File(...)):
                 if kw in tl:
                     skills.append(kw.title() if kw not in ["c++", "ros2", "aws"] else kw.upper())
 
-            for role_kw, role in [("frontend", "Frontend Engineer"),
-                                   ("backend", "Backend Engineer"),
-                                   ("data", "Data Engineer"),
-                                   ("aerospace", "Aerospace Engineer"),
-                                   ("systems", "Systems Engineer")]:
+            # Hardened role detection (checked in order of specificity)
+            for role_kw, role in [
+                ("aerospace", "Aerospace Engineer"),
+                ("satellite", "Aerospace Engineer"),
+                ("spacecraft", "Aerospace Engineer"),
+                ("gnc", "Aerospace Engineer"),
+                ("propulsion", "Aerospace Engineer"),
+                ("robotics", "Robotics Engineer"),
+                ("frontend", "Frontend Engineer"),
+                ("backend", "Backend Engineer"),
+                ("data", "Data Engineer"),
+                ("systems", "Systems Engineer"),
+                ("hardware", "Hardware Engineer")
+            ]:
                 if role_kw in tl:
                     target_role = role
                     break

@@ -10,6 +10,7 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [targetLocation, setTargetLocation] = useState('Remote');
+  const [targetRole, setTargetRole] = useState('Software Engineer');
   const [tailoringStatus, setTailoringStatus] = useState({});
   const [tailoredResult, setTailoredResult] = useState(null);
   const [emailStatus, setEmailStatus] = useState({});
@@ -38,6 +39,7 @@ function App() {
         const data = await res.json();
         setFile(selectedFile);
         setResumeProfile(data.profile);
+        if (data.profile?.title) setTargetRole(data.profile.title);
         setUploadStatus(`Processed: ${data.filename}`);
       } catch (err) {
         setUploadStatus('Error uploading resume');
@@ -49,10 +51,8 @@ function App() {
   const fetchJobs = async () => {
     setLoading(true);
     try {
-      // Pass profile-inferred role + user-specified location as query params
-      const role = resumeProfile?.title || 'Software Engineer';
       const url = new URL(`${API_URL}/fetch_jobs`);
-      url.searchParams.set('role', role);
+      url.searchParams.set('role', targetRole);
       url.searchParams.set('location', targetLocation);
 
       const res = await fetch(url.toString());
@@ -157,15 +157,23 @@ function App() {
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Target Location</label>
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Target Role & Location</label>
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  placeholder="Role (e.g. GNC Engineer)"
+                  className="settings-input"
+                  style={{ width: '180px', margin: 0 }}
+                />
                 <input
                   type="text"
                   value={targetLocation}
                   onChange={(e) => setTargetLocation(e.target.value)}
-                  placeholder="e.g. Remote, New York, CA"
+                  placeholder="Location (e.g. Remote)"
                   className="settings-input"
-                  style={{ width: '200px', margin: 0 }}
+                  style={{ width: '150px', margin: 0 }}
                 />
                 <button className="btn" onClick={fetchJobs} disabled={loading}>
                   {loading ? <div className="loader"></div> : '🔍 Start Finding Jobs'}
